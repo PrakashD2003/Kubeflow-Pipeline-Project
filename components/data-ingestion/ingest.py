@@ -99,26 +99,31 @@ def preprocessing_data (df: pd.DataFrame) -> pd.DataFrame:
         raise
 
 # Function to save processed train and test dataset
-def save_data(train_data: pd.DataFrame,test_data: pd.DataFrame,data_path):
+def save_data(train_data: pd.DataFrame,test_data: pd.DataFrame,train_output_path: str, test_output_path: str):
     """Save the train and test datasets."""
     try:
-        # Creating a Directory named 'raw' if not already exist
+        # Creating a Parent Directories of 'train_output_path' if not already exist
         logger.debug("Creating directory for saving processed data...")
-        os.makedirs(data_path,exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",data_path)
+        os.makedirs(train_output_path,exist_ok=True)
+        logger.info("Successfully Created Directory at: %s",train_output_path)
+
+        # Creating a Parent Directories of 'test_output_path' if not already exist
+        logger.debug("Creating directory for saving processed data...")
+        os.makedirs(test_output_path,exist_ok=True)
+        logger.info("Successfully Created Directory at: %s",test_output_path)
 
         # Saving Train and Test data as CSV inside 'raw' directory
         logger.debug("Saving train and test datasets...")
-        train_data.to_csv(os.path.join(data_path,"train.csv"),index=False)
-        test_data.to_csv(os.path.join(data_path,"test.csv"),index=False)
+        train_data.to_csv(train_output_path,index=False)
+        test_data.to_csv(test_output_path,index=False)
        
-        logger.info('Training and Test data saved to: %s', data_path)
+        logger.info('Training and Test data saved to: "%s" & "%s" Respectively.', train_output_path, test_output_path)
     except Exception as e:
         logger.error('Unexpected error occeured while saving the data: %s', e)
         raise
         
 # Define the main function to execute the data processing pipeline
-def main(param_file_path:str, data_url:str, output_path:str)->str:
+def main(param_file_path:str, data_url:str, train_output_path: str, test_output_path: str)->str:
     try:
         # Loading Parameters From params.yaml
         params = load_params(param_file_path)
@@ -139,8 +144,8 @@ def main(param_file_path:str, data_url:str, output_path:str)->str:
         train_data, test_data = train_test_split(final_df, test_size=test_size, random_state=2)
         
         # Save the train and test data to the specified directory
-        save_data(train_data, test_data, data_path=output_path)
-        return
+        save_data(train_data, test_data,train_output_path=train_output_path, test_output_path=test_output_path)
+
     # Handle any unexpected exceptions that may occur during execution
     except Exception as e:
         logger.error('Failed to complete the data ingestion process: %s', e)
@@ -149,11 +154,14 @@ def main(param_file_path:str, data_url:str, output_path:str)->str:
 # Ensure that the main function runs only when the script is executed directly
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("param_file_path", type=str, required=True, help="Path of the Params.yaml")
-    parser.add_argument("data_url", type=str, required=True, help="URL of the input data CSV")
-    parser.add_argument("output_path", type=str, required=True, help="Path to save the output CSV")
+    parser.add_argument("param_file_path", type=str, help="Path to params.yaml")
+    parser.add_argument("data_url", type=str, help="URL to raw data")
+    parser.add_argument("train_output_path", type=str, help="Output file path for train.csv")
+    parser.add_argument("test_output_path", type=str, help="Output file path for test.csv")
     args = parser.parse_args()
-    main(param_file_path=args.param_file_path,data_url=args.data_url, output_path=args.output_path)
+
+    main(args.param_file_path, args.data_url, args.train_output_path, args.test_output_path)
+
 
 
 

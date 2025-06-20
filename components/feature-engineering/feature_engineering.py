@@ -128,27 +128,31 @@ def apply_tfidf(train_data: pd.DataFrame, test_data: pd.DataFrame, max_features:
         logger.error('Error during TF-IDF transformation: %s', e)
         raise
 
-# Function to save processed train and test dataset
-def save_data(train_data_df: pd.DataFrame,test_data_df: pd.DataFrame,file_path: str) ->None:
-    """Save the proccessed train and test datasets."""
+# Function to save Features Engineered train and test dataset
+def save_data(train_data: pd.DataFrame,test_data: pd.DataFrame,train_output_path: str, test_output_path: str):
+    """Save the train and test datasets."""
     try:
-        # Creating a Directory named 'Proccessed' if not already exist
+        # Creating a Parent Directories of 'train_output_path' if not already exist
         logger.debug("Creating directory for saving processed data...")
-        proccessed_data_path = os.path.join(file_path,'Processed') # Defining path for 'Processed' directory
-        os.makedirs(proccessed_data_path,exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",proccessed_data_path)
+        os.makedirs(train_output_path,exist_ok=True)
+        logger.info("Successfully Created Directory at: %s",train_output_path)
 
-        # Saving Proccessed Train and Test data as CSV inside 'raw' directory
-        logger.debug("Saving the Proccessed train and test datasets...")
-        train_data_df.to_csv(os.path.join(proccessed_data_path,"train_tfidf.csv"),index=False)
-        test_data_df.to_csv(os.path.join(proccessed_data_path,"test_tfidf.csv"),index=False)
+        # Creating a Parent Directories of 'test_output_path' if not already exist
+        logger.debug("Creating directory for saving processed data...")
+        os.makedirs(test_output_path,exist_ok=True)
+        logger.info("Successfully Created Directory at: %s",test_output_path)
+
+        # Saving Train and Test data as CSV inside 'raw' directory
+        logger.debug("Saving train and test datasets...")
+        train_data.to_csv(train_output_path,index=False)
+        test_data.to_csv(test_output_path,index=False)
        
-        logger.info('Proccessed Training and Test data saved to: %s', proccessed_data_path)
+        logger.info('Training and Test data saved to: "%s" & "%s" Respectively.', train_output_path, test_output_path)
     except Exception as e:
         logger.error('Unexpected error occeured while saving the data: %s', e)
         raise
 
-def main(param_file_path:str, train_data_path:str, test_data_path:str, output_path:str):
+def main(param_file_path:str, train_data_path:str, test_data_path:str, train_output_path: str, test_output_path: str):
     try:
         # Loading Parameters From params.yaml
         params = load_params(param_file_path)
@@ -164,7 +168,7 @@ def main(param_file_path:str, train_data_path:str, test_data_path:str, output_pa
 
         train_df, test_df = apply_tfidf(train_data, test_data, max_features)
 
-        save_data(train_df,test_df,file_path= output_path)
+        save_data(train_df,test_df,train_output_path=train_output_path, test_output_path=test_output_path)
        
     except Exception as e:
         logger.error('Unexpected error occured while the feature engineering process: %s', e)
@@ -175,6 +179,7 @@ if __name__ == '__main__':
     parser.add_argument("param_file_path", type=str, required=True, help="Path of the Params.yaml")
     parser.add_argument("train_data_path", type=str, required=True, help="Path to load train data CSV")
     parser.add_argument("test_data_path", type=str, required=True, help="Path to load test data CSV")
-    parser.add_argument("output_path", type=str, required=True, help="Path to save the output CSV")
+    parser.add_argument("train_output_path", type=str, help="Output file path for train.csv")
+    parser.add_argument("test_output_path", type=str, help="Output file path for test.csv")
     args = parser.parse_args()
-    main(param_file_path=args.param_file_path, train_data_path=args.train_data_path, test_data_path=args.test_data_path, output_path=args.output_path)
+    main(param_file_path=args.param_file_path, train_data_path=args.train_data_path, test_data_path=args.test_data_path, train_output_path=args.train_output_path, test_output_path=args.test_output_path)

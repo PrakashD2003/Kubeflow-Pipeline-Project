@@ -121,27 +121,31 @@ def preprocess_df(df: pd.DataFrame, text_column='text', target_column='target') 
         raise
 
 # Function to save processed train and test dataset
-def save_data(train_data_processed: pd.DataFrame,test_data_processed: pd.DataFrame,file_path: str) ->None:
-    """Save the proccessed train and test datasets."""
+def save_data(train_data: pd.DataFrame,test_data: pd.DataFrame,train_output_path: str, test_output_path: str):
+    """Save the train and test datasets."""
     try:
-       # Store the data inside data/interim
+        # Creating a Parent Directories of 'train_output_path' if not already exist
         logger.debug("Creating directory for saving processed data...")
-        os.makedirs(file_path, exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",file_path)
+        os.makedirs(train_output_path,exist_ok=True)
+        logger.info("Successfully Created Directory at: %s",train_output_path)
 
-        # Saving Proccessed Train and Test data as CSV inside 'raw' directory
-        logger.debug("Saving Processed data to %s", file_path)
-        train_data_processed.to_csv(os.path.join(file_path, "train_processed.csv"), index=False)
-        test_data_processed.to_csv(os.path.join(file_path, "test_processed.csv"), index=False)
-        logger.info('Processed data saved to %s', file_path)
+        # Creating a Parent Directories of 'test_output_path' if not already exist
+        logger.debug("Creating directory for saving processed data...")
+        os.makedirs(test_output_path,exist_ok=True)
+        logger.info("Successfully Created Directory at: %s",test_output_path)
+
+        # Saving Train and Test data as CSV inside 'raw' directory
+        logger.debug("Saving train and test datasets...")
+        train_data.to_csv(train_output_path,index=False)
+        test_data.to_csv(test_output_path,index=False)
        
-        logger.info('Proccessed Training and Test data saved to: %s', file_path)
+        logger.info('Training and Test data saved to: "%s" & "%s" Respectively.', train_output_path, test_output_path)
     except Exception as e:
         logger.error('Unexpected error occeured while saving the data: %s', e)
         raise
 
 
-def main(train_data_path:str, test_data_path:str, output_path:str, text_column='text', target_column='target'):
+def main(train_data_path:str, test_data_path:str, train_output_path: str, test_output_path: str, text_column='text', target_column='target'):
     """
     Main function to load raw data, preprocess it, and save the processed data.
     """
@@ -158,9 +162,9 @@ def main(train_data_path:str, test_data_path:str, output_path:str, text_column='
         test_processed_data = preprocess_df(test_data, text_column, target_column)
         logger.info(' Testing Data Preprocessed Successfully')
 
-        # Save data to data/interim
-        file_path = output_path
-        save_data(train_processed_data,test_processed_data,file_path)
+        # Save data 
+        
+        save_data(train_processed_data,test_processed_data,train_output_path=train_output_path, test_output_path=test_output_path)
     except FileNotFoundError as e:
         logger.error('File not found: %s', e)
     except pd.errors.EmptyDataError as e:
@@ -173,8 +177,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("train_data_path", type=str, required=True, help="Path to load train data CSV")
     parser.add_argument("test_data_path", type=str, required=True, help="Path to load test data CSV")
-    parser.add_argument("output_path", type=str, required=True, help="Path to save the output CSV")
+    parser.add_argument("train_output_path", type=str, help="Output file path for train.csv")
+    parser.add_argument("test_output_path", type=str, help="Output file path for test.csv")
     parser.add_argument("text_column", type=str, required=False, help="Name of Text Column to Preprocess")
     parser.add_argument("target_column", type=str, required=False, help="Name of Target Column to Preprocess")
     args = parser.parse_args()
-    main(train_data_path=args.train_data_path, test_data_path=args.test_data_path, output_path=args.output_path, text_column=args.text_column, target_column=args.target_column)
+    main(train_data_path=args.train_data_path, test_data_path=args.test_data_path, train_output_path=args.train_output_path, test_output_path=args.test_output_path, text_column=args.text_column, target_column=args.target_column)
