@@ -1,0 +1,296 @@
+# PIPELINE DEFINITION
+# Name: spam-detection-pipeline
+# Description: Pipeline for spam detection using TF-IDF and RandomForest
+# Inputs:
+#    data_url: str [Default: 'https://raw.githubusercontent.com/PrakashD2003/DATASETS/main/spam.csv']
+#    param_file_path: str [Default: '/app/params.yaml']
+#    target_column: str [Default: 'target']
+#    text_column: str [Default: 'text']
+components:
+  comp-data-ingestion:
+    executorLabel: exec-data-ingestion
+    inputDefinitions:
+      parameters:
+        data_url:
+          parameterType: STRING
+        param_file_path:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        test_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-data-preprocessing:
+    executorLabel: exec-data-preprocessing
+    inputDefinitions:
+      artifacts:
+        test_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        target_column:
+          parameterType: STRING
+        text_column:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        test_processed:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_processed:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-evaluate-model:
+    executorLabel: exec-evaluate-model
+    inputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        test_tfidf:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+  comp-feature-engineering:
+    executorLabel: exec-feature-engineering
+    inputDefinitions:
+      artifacts:
+        test_processed:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_processed:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        param_file_path:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        test_tfidf:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_tfidf:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        train_tfidf:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        param_file_path:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+defaultPipelineRoot: minio://mlpipeline/artifacts
+deploymentSpec:
+  executors:
+    exec-data-ingestion:
+      container:
+        args:
+        - '{{$.inputs.parameters[''param_file_path'']}}'
+        - '{{$.inputs.parameters[''data_url'']}}'
+        - '{{$.outputs.artifacts[''train_data''].path}}'
+        - '{{$.outputs.artifacts[''test_data''].path}}'
+        command:
+        - python
+        - /app/ingest.py
+        image: prakash3112/kubeflow-pipeline:ingestv3
+    exec-data-preprocessing:
+      container:
+        args:
+        - '{{$.inputs.artifacts[''train_data''].path}}'
+        - '{{$.inputs.artifacts[''test_data''].path}}'
+        - '{{$.outputs.artifacts[''train_processed''].path}}'
+        - '{{$.outputs.artifacts[''test_processed''].path}}'
+        - '{{$.inputs.parameters[''text_column'']}}'
+        - '{{$.inputs.parameters[''target_column'']}}'
+        command:
+        - python
+        - /app/preprocess.py
+        image: prakash3112/kubeflow-pipeline:preprocess-v10
+    exec-evaluate-model:
+      container:
+        args:
+        - '{{$.inputs.artifacts[''model''].path}}'
+        - '{{$.inputs.artifacts[''test_tfidf''].path}}'
+        - '{{$.outputs.artifacts[''metrics''].path}}'
+        command:
+        - python
+        - /app/model_evaluation.py
+        image: prakash3112/kubeflow-pipeline:model_evaluation-v9
+    exec-feature-engineering:
+      container:
+        args:
+        - '{{$.inputs.parameters[''param_file_path'']}}'
+        - '{{$.inputs.artifacts[''train_processed''].path}}'
+        - '{{$.inputs.artifacts[''test_processed''].path}}'
+        - '{{$.outputs.artifacts[''train_tfidf''].path}}'
+        - '{{$.outputs.artifacts[''test_tfidf''].path}}'
+        command:
+        - python
+        - /app/feature_engineering.py
+        image: prakash3112/kubeflow-pipeline:feature_engineering-v6
+    exec-train-model:
+      container:
+        args:
+        - '{{$.inputs.parameters[''param_file_path'']}}'
+        - '{{$.inputs.artifacts[''train_tfidf''].path}}'
+        - '{{$.outputs.artifacts[''model''].path}}'
+        command:
+        - python
+        - /app/model_training.py
+        image: prakash3112/kubeflow-pipeline:train-v4
+pipelineInfo:
+  description: Pipeline for spam detection using TF-IDF and RandomForest
+  name: spam-detection-pipeline
+root:
+  dag:
+    tasks:
+      data-ingestion:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-ingestion
+        inputs:
+          parameters:
+            data_url:
+              componentInputParameter: data_url
+            param_file_path:
+              componentInputParameter: param_file_path
+        taskInfo:
+          name: data-ingestion
+      data-preprocessing:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-preprocessing
+        dependentTasks:
+        - data-ingestion
+        inputs:
+          artifacts:
+            test_data:
+              taskOutputArtifact:
+                outputArtifactKey: test_data
+                producerTask: data-ingestion
+            train_data:
+              taskOutputArtifact:
+                outputArtifactKey: train_data
+                producerTask: data-ingestion
+          parameters:
+            target_column:
+              componentInputParameter: target_column
+            text_column:
+              componentInputParameter: text_column
+        taskInfo:
+          name: data-preprocessing
+      evaluate-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-evaluate-model
+        dependentTasks:
+        - feature-engineering
+        - train-model
+        inputs:
+          artifacts:
+            model:
+              taskOutputArtifact:
+                outputArtifactKey: model
+                producerTask: train-model
+            test_tfidf:
+              taskOutputArtifact:
+                outputArtifactKey: test_tfidf
+                producerTask: feature-engineering
+        taskInfo:
+          name: evaluate-model
+      feature-engineering:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-feature-engineering
+        dependentTasks:
+        - data-preprocessing
+        inputs:
+          artifacts:
+            test_processed:
+              taskOutputArtifact:
+                outputArtifactKey: test_processed
+                producerTask: data-preprocessing
+            train_processed:
+              taskOutputArtifact:
+                outputArtifactKey: train_processed
+                producerTask: data-preprocessing
+          parameters:
+            param_file_path:
+              componentInputParameter: param_file_path
+        taskInfo:
+          name: feature-engineering
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - feature-engineering
+        inputs:
+          artifacts:
+            train_tfidf:
+              taskOutputArtifact:
+                outputArtifactKey: train_tfidf
+                producerTask: feature-engineering
+          parameters:
+            param_file_path:
+              componentInputParameter: param_file_path
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    parameters:
+      data_url:
+        defaultValue: https://raw.githubusercontent.com/PrakashD2003/DATASETS/main/spam.csv
+        isOptional: true
+        parameterType: STRING
+      param_file_path:
+        defaultValue: /app/params.yaml
+        isOptional: true
+        parameterType: STRING
+      target_column:
+        defaultValue: target
+        isOptional: true
+        parameterType: STRING
+      text_column:
+        defaultValue: text
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.13.0

@@ -41,50 +41,41 @@ logger.info("\n" + " "*52 + "="*60)
 logger.info(f"NEW RUN STARTED AT {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 logger.info("="*60 + "\n")
 
-# Function to Load Parameters from params.yaml
-def load_params(param_path:str) ->dict:
-    try:
-        logger.debug("Loading Params From: %s",param_path)
-        with open(param_path,'r') as file:
-            params = yaml.safe_load(file)
-        logger.info("Params Loaded Successfully From: %s",param_path)
-        return params
-    except FileNotFoundError:
-        logger.debug('File not found: %s',param_path)
-        raise
-    except yaml.YAMLError as e:
-        logger.debug('Yaml error: %s',e)
-        raise
-    except Exception as e:
-        logger.debug('Unexpected error occured while loadind parameters: %s',e)
-        raise
-
 # Function for Loadind Trained Model
-def load_model(file_path: str) ->RandomForestClassifier:
-    """Load a Trained Model From Specified Path"""
+def load_model(model_dir: str) -> RandomForestClassifier:
+    """Load a trained model from a directory (expects model.pkl inside)."""
     try:
-        logger.debug("Loading Model From: %s",file_path)
-        with open(file_path,'rb') as file:
+        model_path = os.path.join(model_dir, "model.pkl")  # or whatever name you saved it as
+        logger.debug("Loading Model From: %s", model_path)
+        with open(model_path, 'rb') as file:
             model = pickle.load(file)
-        logger.info("Model Loaded Succesfully.")
+        logger.info("Model Loaded Successfully.")
         return model
     except FileNotFoundError:
-        logger.debug("File not Found: %s",file_path)
+        logger.debug("File not found: %s", model_path)
         raise
     except Exception as e:
-        logger.debug("Unexpected Error Occured while Loading the Model: %s",e)
+        logger.debug("Unexpected error while loading the model: %s", e)
         raise
 
 # Function for loading the Dataset
-def load_data(file_path: str) -> pd.DataFrame:
-    """Load data from a CSV file."""
+def load_data(input_dir: str, train_data: bool) -> pd.DataFrame:
+    """
+    Load train or test CSV from a Kubeflow-mounted directory path.
+
+    :param input_dir: Directory path (e.g., train_data.path or test_data.path)
+    :param train_data: Flag to determine whether to load 'train.csv' or 'test.csv'
+    :return: Loaded DataFrame
+    """
     try:
-        logger.debug("Loading Test Data from: %s",file_path)
+        filename = "train.csv" if train_data else "test.csv"
+        file_path = os.path.join(input_dir, filename)
+
+        logger.debug("Attempting to load data from: %s", file_path)
         df = pd.read_csv(file_path)
-        df.fillna('',inplace=True)
-       
-        logger.info("Data successfully loaded and NaN filled from %s", file_path)
+        logger.info("Data successfully loaded from %s", file_path)
         return df
+
     except pd.errors.ParserError as e:
         logger.error("Failed to parse the CSV file: %s", e)
         raise
@@ -92,8 +83,9 @@ def load_data(file_path: str) -> pd.DataFrame:
         logger.error('File not found: %s', e)
         raise
     except Exception as e:
-        logger.error("Unexpected error occeured while loading the data: %s", e)
+        logger.error("Unexpected error occurred while loading the data: %s", e)
         raise
+
 
 # Function to Evaluate the Model
 def evaluate_model(clf:RandomForestClassifier,X_test:np.array,Y_test:np.array) ->dict:
@@ -122,38 +114,32 @@ def evaluate_model(clf:RandomForestClassifier,X_test:np.array,Y_test:np.array) -
         logger.debug("Unexpected error occured during model evaluation: %s",e)
         raise
 # Function to Save the Evaluation Metrics as Json File
-def save_metrics(metrics:dict,file_path:str):
-    """Saves the Evaluation Metrics to a JSON file"""
+def save_metrics(metrics: dict, output_dir: str):
+    """Saves the Evaluation Metrics to a JSON file in a given output directory path from Kubeflow."""
     try:
-        # Ensure the directory exists before saving the model
-        logger.debug("Creating directory for saving Evaluation Metrics...")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)  # Creates directories if they don't exist
-        logger.info("Successfully Created Directory at: %s", file_path)
+        # Define full file path
+        file_path = os.path.join(output_dir, "metrics.json")
 
-        logger.debug('Saving Evaluation Metrics...')
-        with open(file_path,'w') as file:
-            json.dump(metrics,file,indent=4)
-            logger.info('Evaluation Metrics successfully saved to %s', file_path)
+        # Ensure the directory exists
+        os.makedirs(output_dir, exist_ok=True)
 
-    except FileNotFoundError as e:
-        # Handles errors in case the specified file path does not exist
-        logger.error('File path not found: %s', e)
-        raise
+        logger.debug("Saving evaluation metrics to file: %s", file_path)
+        with open(file_path, 'w') as file:
+            json.dump(metrics, file, indent=4)
+
+        logger.info("Evaluation metrics successfully saved to %s", file_path)
+
     except Exception as e:
-        # Handles any other unexpected errors that might occur
-        logger.error('Unexpected error occurred while saving the evaluation metrics: %s', e)
-        raise
+        logger.error("Error while saving metrics: %s",e)
 
-def main(param_file_path:str, model_load_path:str, test_data_path:str, metrics_save_path:str):
+def main(model_load_path:str, test_data_path:str, metrics_save_path:str):
     try:
-         # Loading Parameters From params.yaml
-        params = load_params(param_file_path)
-
+        
         # Loading Trained Model
         clf = load_model(model_load_path)
         
         # Loading Test Data
-        test_data = load_data(test_data_path)
+        test_data = load_data(test_data_path, train_data=False)
 
         # Extract Input(independent) features and targer(dependent) feature from data
         x_test = test_data.iloc[:,:-1]
@@ -169,10 +155,9 @@ def main(param_file_path:str, model_load_path:str, test_data_path:str, metrics_s
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("param_file_path", type=str, required=True, help="Path of the Params.yaml")
-    parser.add_argument("train_data_path", type=str, required=True, help="Path to load train data CSV")
-    parser.add_argument("test_data_path", type=str, required=True, help="Path to load test data CSV")
-    parser.add_argument("metrics_save_path", type=str, required=True, help="Path to save the metrics json")
-    
+    parser.add_argument("model_load_path", type=str, help="Path to load trained Model")
+    parser.add_argument("test_data_path", type=str, help="Path to load test data CSV")
+    parser.add_argument("metrics_save_path", type=str, help="Path to save the metrics json")
     args = parser.parse_args()
-    main(param_file_path=args.param_file_path, test_data_path=args.test_data_path, metrics_save_path=args.metrics_save_path)
+
+    main(model_load_path=args.model_load_path, test_data_path=args.test_data_path, metrics_save_path=args.metrics_save_path)

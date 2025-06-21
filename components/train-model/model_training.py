@@ -58,15 +58,23 @@ def load_params(param_path:str) ->dict:
         raise
 
 # Function for loading the Dataset
-def load_data(file_path: str) -> pd.DataFrame:
-    """Load data from a CSV file."""
+def load_data(input_dir: str, train_data: bool) -> pd.DataFrame:
+    """
+    Load train or test CSV from a Kubeflow-mounted directory path.
+
+    :param input_dir: Directory path (e.g., train_data.path or test_data.path)
+    :param train_data: Flag to determine whether to load 'train.csv' or 'test.csv'
+    :return: Loaded DataFrame
+    """
     try:
-        logger.debug("Loading Training Data from: %s",file_path)
+        filename = "train.csv" if train_data else "test.csv"
+        file_path = os.path.join(input_dir, filename)
+
+        logger.debug("Attempting to load data from: %s", file_path)
         df = pd.read_csv(file_path)
-        df.fillna('',inplace=True)
-       
-        logger.info("Data successfully loaded and NaN filled from %s", file_path)
+        logger.info("Data successfully loaded from %s", file_path)
         return df
+
     except pd.errors.ParserError as e:
         logger.error("Failed to parse the CSV file: %s", e)
         raise
@@ -74,7 +82,7 @@ def load_data(file_path: str) -> pd.DataFrame:
         logger.error('File not found: %s', e)
         raise
     except Exception as e:
-        logger.error("Unexpected error occeured while loading the data: %s", e)
+        logger.error("Unexpected error occurred while loading the data: %s", e)
         raise
 
 # Function to train our randomforest model
@@ -107,34 +115,31 @@ def train_model(X_train: np.ndarray, y_train: np.ndarray, params: dict) -> Rando
         raise
 
 # Function to save the trained model
-def save_model(model, file_path: str) -> None:
+def save_model(model, output_dir: str) -> None:
     """
-    Save the trained model to a file using pickle.
-    
+    Save the trained model to a file inside the Kubeflow-provided output directory using pickle.
+
     :param model: Trained model object (e.g., a Scikit-learn model)
-    :param file_path: Path where the model should be saved, including the filename and extension (.pkl)
+    :param output_dir: Path to the Kubeflow artifact directory (model.path)
     """
     try:
-        # Ensure the directory exists before saving the model
+        # Define full path with filename
+        file_path = os.path.join(output_dir, "model.pkl")
+
+        # Ensure the directory exists
         logger.debug("Creating directory for saving Trained Model...")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)  # Creates directories if they don't exist
-        logger.info("Successfully Created Directory at: %s", file_path)
+        os.makedirs(output_dir, exist_ok=True)
+        logger.info("Successfully Created Directory at: %s", output_dir)
 
-        # Open the file in write-binary mode ('wb') to store the model
-        logger.debug('Saving Trained Model...')
+        # Save the model
+        logger.debug("Saving Trained Model...")
         with open(file_path, 'wb') as file:
-            pickle.dump(model, file)  # Serialize and save the model to the specified file path
-        logger.info('Model successfully saved to %s', file_path)
+            pickle.dump(model, file)
+        logger.info("Model successfully saved to %s", file_path)
 
-    except FileNotFoundError as e:
-        # Handles errors in case the specified file path does not exist
-        logger.error('File path not found: %s', e)
-        raise
     except Exception as e:
-        # Handles any other unexpected errors that might occur
-        logger.error('Unexpected error occurred while saving the model: %s', e)
+        logger.error("Unexpected error occurred while saving the model: %s", e)
         raise
-
 
 # Main function to load data, train the model, and save it
 def main(param_file_path:str, train_data_path:str, model_save_path:str):
@@ -143,7 +148,7 @@ def main(param_file_path:str, train_data_path:str, model_save_path:str):
         params = load_params(param_file_path)['4_Model_Training']
         
         # Load preprocessed training data (TF-IDF transformed)
-        train_data = load_data(train_data_path)
+        train_data = load_data(train_data_path, train_data=True)
         
         # Extract input features (X_train) and target labels (y_train) from the dataset
         X_train = train_data.iloc[:, :-1].values  # Select all columns except the last one (features)
@@ -166,9 +171,9 @@ def main(param_file_path:str, train_data_path:str, model_save_path:str):
 # Entry point of the script: Execute the main function when the script runs
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("param_file_path", type=str, required=True, help="Path of the Params.yaml")
-    parser.add_argument("train_data_path", type=str, required=True, help="Path to load train data CSV")
-    parser.add_argument("model_save_path", type=str, required=True, help="Path to save the trained model")
+    parser.add_argument("param_file_path", type=str, help="Path of the Params.yaml")
+    parser.add_argument("train_data_path", type=str, help="Path to load train data CSV")
+    parser.add_argument("model_save_path", type=str, help="Path to save the trained model")
     args = parser.parse_args()
     main(param_file_path=args.param_file_path, train_data_path=args.train_data_path, model_save_path=args.model_save_path)
 

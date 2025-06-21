@@ -99,28 +99,25 @@ def preprocessing_data (df: pd.DataFrame) -> pd.DataFrame:
         raise
 
 # Function to save processed train and test dataset
-def save_data(train_data: pd.DataFrame,test_data: pd.DataFrame,train_output_path: str, test_output_path: str):
+def save_data(train_data: pd.DataFrame, test_data: pd.DataFrame, train_output_path: str, test_output_path: str):
     """Save the train and test datasets."""
     try:
-        # Creating a Parent Directories of 'train_output_path' if not already exist
-        logger.debug("Creating directory for saving processed data...")
-        os.makedirs(train_output_path,exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",train_output_path)
+        train_output_path = os.path.join(train_output_path, "train.csv")
+        test_output_path = os.path.join(test_output_path, "test.csv")
 
-        # Creating a Parent Directories of 'test_output_path' if not already exist
-        logger.debug("Creating directory for saving processed data...")
-        os.makedirs(test_output_path,exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",test_output_path)
-
-        # Saving Train and Test data as CSV inside 'raw' directory
-        logger.debug("Saving train and test datasets...")
-        train_data.to_csv(train_output_path,index=False)
-        test_data.to_csv(test_output_path,index=False)
+        # Make sure parent directories exist
+        os.makedirs(os.path.dirname(train_output_path), exist_ok=True)
+        os.makedirs(os.path.dirname(test_output_path), exist_ok=True)
+        
+        logger.info("Saving train and test datasets...")
+        train_data.to_csv(train_output_path, index=False)
+        test_data.to_csv(test_output_path, index=False)
        
-        logger.info('Training and Test data saved to: "%s" & "%s" Respectively.', train_output_path, test_output_path)
+        logger.info('Training and test data saved to: "%s" & "%s" respectively.', train_output_path, test_output_path)
     except Exception as e:
-        logger.error('Unexpected error occeured while saving the data: %s', e)
+        logger.error('Unexpected error occurred while saving the data: %s', e)
         raise
+
         
 # Define the main function to execute the data processing pipeline
 def main(param_file_path:str, data_url:str, train_output_path: str, test_output_path: str)->str:

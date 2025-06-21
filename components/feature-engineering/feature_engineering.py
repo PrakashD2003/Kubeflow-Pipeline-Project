@@ -57,14 +57,23 @@ def load_params(param_path:str) ->dict:
         raise
 
 # Function for loading the Dataset
-def load_data(file_path: str) -> pd.DataFrame:
-    """Load data from a CSV file."""
+def load_data(input_dir: str, train_data: bool) -> pd.DataFrame:
+    """
+    Load train or test CSV from a Kubeflow-mounted directory path.
+
+    :param input_dir: Directory path (e.g., train_data.path or test_data.path)
+    :param train_data: Flag to determine whether to load 'train.csv' or 'test.csv'
+    :return: Loaded DataFrame
+    """
     try:
+        filename = "train.csv" if train_data else "test.csv"
+        file_path = os.path.join(input_dir, filename)
+
+        logger.debug("Attempting to load data from: %s", file_path)
         df = pd.read_csv(file_path)
-        df.fillna('',inplace=True)
-       
-        logger.info("Data successfully loaded and NaN filled from %s", file_path)
+        logger.info("Data successfully loaded from %s", file_path)
         return df
+
     except pd.errors.ParserError as e:
         logger.error("Failed to parse the CSV file: %s", e)
         raise
@@ -72,8 +81,9 @@ def load_data(file_path: str) -> pd.DataFrame:
         logger.error('File not found: %s', e)
         raise
     except Exception as e:
-        logger.error("Unexpected error occeured while loading the data: %s", e)
+        logger.error("Unexpected error occurred while loading the data: %s", e)
         raise
+
 
 # Function to apply TF-IDF transformation to the dataset
 # This function converts text data into numerical features using TF-IDF (Term Frequency-Inverse Document Frequency).
@@ -99,6 +109,10 @@ def apply_tfidf(train_data: pd.DataFrame, test_data: pd.DataFrame, max_features:
         # Initialize the TF-IDF vectorizer
         # max_features determines the number of most important words to keep
         vectorizer = TfidfVectorizer(max_features=max_features)
+        
+        # Defensive: ensure no NaN in text columns
+        train_data['text'] = train_data['text'].fillna("")
+        test_data['text'] = test_data['text'].fillna("")
 
         # Extract the text data (features) and target labels
         X_train = train_data['text'].values  # Training text data
@@ -129,27 +143,23 @@ def apply_tfidf(train_data: pd.DataFrame, test_data: pd.DataFrame, max_features:
         raise
 
 # Function to save Features Engineered train and test dataset
-def save_data(train_data: pd.DataFrame,test_data: pd.DataFrame,train_output_path: str, test_output_path: str):
+def save_data(train_data: pd.DataFrame, test_data: pd.DataFrame, train_output_path: str, test_output_path: str):
     """Save the train and test datasets."""
     try:
-        # Creating a Parent Directories of 'train_output_path' if not already exist
-        logger.debug("Creating directory for saving processed data...")
-        os.makedirs(train_output_path,exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",train_output_path)
+        train_output_path = os.path.join(train_output_path, "train.csv")
+        test_output_path = os.path.join(test_output_path, "test.csv")
 
-        # Creating a Parent Directories of 'test_output_path' if not already exist
-        logger.debug("Creating directory for saving processed data...")
-        os.makedirs(test_output_path,exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",test_output_path)
-
-        # Saving Train and Test data as CSV inside 'raw' directory
-        logger.debug("Saving train and test datasets...")
-        train_data.to_csv(train_output_path,index=False)
-        test_data.to_csv(test_output_path,index=False)
+        # Make sure parent directories exist
+        os.makedirs(os.path.dirname(train_output_path), exist_ok=True)
+        os.makedirs(os.path.dirname(test_output_path), exist_ok=True)
+        
+        logger.info("Saving train and test datasets...")
+        train_data.to_csv(train_output_path, index=False)
+        test_data.to_csv(test_output_path, index=False)
        
-        logger.info('Training and Test data saved to: "%s" & "%s" Respectively.', train_output_path, test_output_path)
+        logger.info('Training and test data saved to: "%s" & "%s" respectively.', train_output_path, test_output_path)
     except Exception as e:
-        logger.error('Unexpected error occeured while saving the data: %s', e)
+        logger.error('Unexpected error occurred while saving the data: %s', e)
         raise
 
 def main(param_file_path:str, train_data_path:str, test_data_path:str, train_output_path: str, test_output_path: str):
@@ -160,10 +170,10 @@ def main(param_file_path:str, train_data_path:str, test_data_path:str, train_out
         max_features = params['3_Feature_Engineering']['max_features']
         
         logger.debug("Attempting to load training data from: %s", './data/interim/train_processed.csv')
-        train_data = load_data(train_data_path)
+        train_data = load_data(train_data_path, train_data=True)
        
         logger.debug("Attempting to load testing data from: %s", './data/interim/test_processed.csv')
-        test_data = load_data(test_data_path)
+        test_data = load_data(test_data_path, train_data=False)
         
 
         train_df, test_df = apply_tfidf(train_data, test_data, max_features)
@@ -176,9 +186,9 @@ def main(param_file_path:str, train_data_path:str, test_data_path:str, train_out
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("param_file_path", type=str, required=True, help="Path of the Params.yaml")
-    parser.add_argument("train_data_path", type=str, required=True, help="Path to load train data CSV")
-    parser.add_argument("test_data_path", type=str, required=True, help="Path to load test data CSV")
+    parser.add_argument("param_file_path", type=str, help="Path of the Params.yaml")
+    parser.add_argument("train_data_path", type=str, help="Path to load train data CSV")
+    parser.add_argument("test_data_path", type=str, help="Path to load test data CSV")
     parser.add_argument("train_output_path", type=str, help="Output file path for train.csv")
     parser.add_argument("test_output_path", type=str, help="Output file path for test.csv")
     args = parser.parse_args()

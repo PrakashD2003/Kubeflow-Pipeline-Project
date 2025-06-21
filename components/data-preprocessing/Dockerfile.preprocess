@@ -1,11 +1,19 @@
- # Dockerfile.train
- FROM python:3.9-slim
- WORKDIR /app
- # Install dependencies
- COPY requirements.txt  .
- COPY params.yaml .
- # assume requirements.txt contains pandas==1.5.3 and scikit-learn==1.2.2
- RUN pip install --no-cache-dir -r requirements.txt
- # Copy the training script
- COPY components/data-preprocessing/preprocess.py /app/preprocess.py
- ENTRYPOINT ["python", "/app/preprocess.py"]
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Explicitly download punkt and punkt_tab into a known path
+RUN mkdir -p /usr/share/nltk_data && \
+    python -m nltk.downloader -d /usr/share/nltk_data punkt stopwords punkt_tab
+
+ENV NLTK_DATA=/usr/share/nltk_data
+
+# Copy source code
+COPY params.yaml .
+COPY components/data-preprocessing/preprocess.py .
+
+ENTRYPOINT ["python", "preprocess.py"]

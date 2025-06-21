@@ -6,12 +6,13 @@ from nltk.stem.porter import PorterStemmer
 from nltk.corpus import stopwords
 import string
 import nltk
+from nltk.data import path as nltk_data_path
 import argparse
 from datetime import datetime
 
-nltk.download('stopwords')
-nltk.download('punkt')  # Also required for word_tokenize
-
+# Explicitly tell nltk where to find the data
+# Explicitly add path (again for extra safety)
+nltk_data_path.append('/usr/share/nltk_data')
 
 # Ensure that a directory named 'logs' exist in our root folder (if not it creates one)(for storing log file)
 log_dir = 'logs'
@@ -44,16 +45,26 @@ logger.info("\n" + " "*50 + "="*60)
 logger.info(f"NEW RUN STARTED AT {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 logger.info("="*60 + "\n")
 
+logger.debug(f"NLTK paths: {nltk.data.path}") 
+
 # Function for loading the Dataset
-def load_data(file_path: str) -> pd.DataFrame:
-    """Load data from a CSV file."""
+def load_data(input_dir: str, train_data: bool) -> pd.DataFrame:
+    """
+    Load train or test CSV from a Kubeflow-mounted directory path.
+
+    :param input_dir: Directory path (e.g., train_data.path or test_data.path)
+    :param train_data: Flag to determine whether to load 'train.csv' or 'test.csv'
+    :return: Loaded DataFrame
+    """
     try:
+        filename = "train.csv" if train_data else "test.csv"
+        file_path = os.path.join(input_dir, filename)
+
         logger.debug("Attempting to load data from: %s", file_path)
-        
         df = pd.read_csv(file_path)
-       
         logger.info("Data successfully loaded from %s", file_path)
         return df
+
     except pd.errors.ParserError as e:
         logger.error("Failed to parse the CSV file: %s", e)
         raise
@@ -61,7 +72,7 @@ def load_data(file_path: str) -> pd.DataFrame:
         logger.error('File not found: %s', e)
         raise
     except Exception as e:
-        logger.error("Unexpected error occeured while loading the data: %s", e)
+        logger.error("Unexpected error occurred while loading the data: %s", e)
         raise
 
 # Function to tranform the input text
@@ -121,28 +132,27 @@ def preprocess_df(df: pd.DataFrame, text_column='text', target_column='target') 
         raise
 
 # Function to save processed train and test dataset
-def save_data(train_data: pd.DataFrame,test_data: pd.DataFrame,train_output_path: str, test_output_path: str):
+def save_data(train_data: pd.DataFrame, test_data: pd.DataFrame, train_output_path: str, test_output_path: str):
     """Save the train and test datasets."""
     try:
-        # Creating a Parent Directories of 'train_output_path' if not already exist
-        logger.debug("Creating directory for saving processed data...")
-        os.makedirs(train_output_path,exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",train_output_path)
+        train_output_path = os.path.join(train_output_path, "train.csv")
+        test_output_path = os.path.join(test_output_path, "test.csv")
 
-        # Creating a Parent Directories of 'test_output_path' if not already exist
-        logger.debug("Creating directory for saving processed data...")
-        os.makedirs(test_output_path,exist_ok=True)
-        logger.info("Successfully Created Directory at: %s",test_output_path)
-
-        # Saving Train and Test data as CSV inside 'raw' directory
-        logger.debug("Saving train and test datasets...")
-        train_data.to_csv(train_output_path,index=False)
-        test_data.to_csv(test_output_path,index=False)
+        # Make sure parent directories exist
+        os.makedirs(os.path.dirname(train_output_path), exist_ok=True)
+        os.makedirs(os.path.dirname(test_output_path), exist_ok=True)
+        
+        logger.info("Saving train and test datasets...")
+        logger.info(f"Writing train.csv to: {train_output_path}")
+        train_data.to_csv(train_output_path, index=False)
+        logger.info(f"Writing test.csv to: {test_output_path}")
+        test_data.to_csv(test_output_path, index=False)
        
-        logger.info('Training and Test data saved to: "%s" & "%s" Respectively.', train_output_path, test_output_path)
+        logger.info('Training and test data saved to: "%s" & "%s" respectively.', train_output_path, test_output_path)
     except Exception as e:
-        logger.error('Unexpected error occeured while saving the data: %s', e)
+        logger.error('Unexpected error occurred while saving the data: %s', e)
         raise
+
 
 
 def main(train_data_path:str, test_data_path:str, train_output_path: str, test_output_path: str, text_column='text', target_column='target'):
@@ -151,8 +161,8 @@ def main(train_data_path:str, test_data_path:str, train_output_path: str, test_o
     """
     try:
         # Fetch the data from data/raw
-        train_data = load_data(train_data_path)
-        test_data = load_data(test_data_path)
+        train_data = load_data(train_data_path, train_data=True)
+        test_data = load_data(test_data_path, train_data=False)
 
         # Transform the data
         logger.debug("Starting DataFrame preprocessing for Training Data...")
@@ -163,8 +173,7 @@ def main(train_data_path:str, test_data_path:str, train_output_path: str, test_o
         logger.info(' Testing Data Preprocessed Successfully')
 
         # Save data 
-        
-        save_data(train_processed_data,test_processed_data,train_output_path=train_output_path, test_output_path=test_output_path)
+        save_data(train_data=train_processed_data,test_data=test_processed_data,train_output_path=train_output_path, test_output_path=test_output_path)
     except FileNotFoundError as e:
         logger.error('File not found: %s', e)
     except pd.errors.EmptyDataError as e:
@@ -175,11 +184,11 @@ def main(train_data_path:str, test_data_path:str, train_output_path: str, test_o
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("train_data_path", type=str, required=True, help="Path to load train data CSV")
-    parser.add_argument("test_data_path", type=str, required=True, help="Path to load test data CSV")
+    parser.add_argument("train_data_path", type=str, help="Path to load train data CSV")
+    parser.add_argument("test_data_path", type=str, help="Path to load test data CSV")
     parser.add_argument("train_output_path", type=str, help="Output file path for train.csv")
     parser.add_argument("test_output_path", type=str, help="Output file path for test.csv")
-    parser.add_argument("text_column", type=str, required=False, help="Name of Text Column to Preprocess")
-    parser.add_argument("target_column", type=str, required=False, help="Name of Target Column to Preprocess")
+    parser.add_argument("text_column", type=str, help="Name of Text Column to Preprocess")
+    parser.add_argument("target_column", type=str, help="Name of Target Column to Preprocess")
     args = parser.parse_args()
     main(train_data_path=args.train_data_path, test_data_path=args.test_data_path, train_output_path=args.train_output_path, test_output_path=args.test_output_path, text_column=args.text_column, target_column=args.target_column)

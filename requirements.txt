@@ -3,7 +3,4 @@ numpy
 nltk
 wordcloud
 scikit-learn
-
-
-
-
+pyyaml
