@@ -23,13 +23,17 @@ A key feature of this project is its sophisticated model governance and deployme
 
       * Each pipeline step (e.g., data ingestion, training) is packaged as a separate **Docker** container.
       * This ensures a consistent execution environment, eliminates dependency conflicts, and makes the pipeline highly portable and scalable.
-
+        
   * **Intelligent Model Promotion**:
 
       * Implements an automated champion/challenger strategy using a dedicated **`Model Pusher`** component.
       * Automatically fetches the current production model from the **MLflow Model Registry**.
       * Promotes a new model to "Production" only if its primary metric (e.g., accuracy) surpasses the production model's metric by a configurable `improvement_threshold`.
       * Models that do not meet the threshold are safely registered in "Staging" for manual review.
+        
+  * **Full CI/CD for MLOps**:
+      * **Continuous Integration**: The GitHub Actions workflow automatically compiles and validates the Kubeflow pipeline definition on every push to `main`.
+      * **Continuous Deployment**: A second job in the workflow uses a **self-hosted runner** to automatically deploy the compiled pipeline to a local or private Kubernetes (Minikube) cluster, completing the                                        automation loop.
 
   * **Secure Credential Management**:
 
@@ -61,6 +65,31 @@ This project implements a complete, automated MLOps workflow composed of six con
       * If the new model shows sufficient improvement (based on a configurable threshold in `params.yaml`), it archives the old production model and promotes the new one to "Production".
       * If the new model does not meet the threshold, it is registered in the "Staging" stage for review.
 
+
+-----
+## 🏛️ CI/CD and Deployment Architecture
+
+The project demonstrates a complete GitOps-style workflow for MLOps.
+
+```mermaid
+graph TD
+    A[Developer pushes code to GitHub] --> B{GitHub Actions Workflow Triggered};
+    
+    subgraph "Job 1: Continuous Integration (Cloud Runner)"
+        B --> C[1. Checkout Code];
+        C --> D[2. Install Dependencies];
+        D --> E[3. Compile pipeline.py to pipeline.yaml];
+        E --> F[4. Upload YAML as Build Artifact];
+    end
+    
+    subgraph "Job 2: Continuous Deployment (Self-Hosted Runner)"
+        F --> G[1. Download Build Artifact];
+        G --> H[2. Authenticate to Local KFP];
+        H --> I[3. Deploy pipeline.yaml to Minikube/Kubeflow];
+    end
+
+    I --> J[Kubeflow Pipeline Updated];
+```
 
 -----
 
@@ -97,6 +126,8 @@ This project implements a complete, automated MLOps workflow composed of six con
     * *For local development, this can be easily set up using tools like **Minikube**.*
 * Docker installed and running on your local machine.
 * A DagsHub account and a repository configured for MLflow tracking.
+* (Optional, for CD) A self-hosted GitHub runner configured for your repository with access to your Kubernetes cluster.
+
 
 ### Steps
 
@@ -161,7 +192,6 @@ You can programmatically launch a run and pass your credentials as parameters.
 ## 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
-
 
 
 
