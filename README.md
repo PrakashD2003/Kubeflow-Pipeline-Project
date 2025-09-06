@@ -44,7 +44,7 @@ A key feature of this project is its sophisticated model governance and deployme
 -----
 
 ## 🏛️ Pipeline Architecture
-
+![Architecture Diagram](assets/architecture-diagram.png)
 This project implements a complete, automated MLOps workflow composed of six containerized components orchestrated by Kubeflow.
 
 `Data Ingestion` **➔** `Data Preprocessing` **➔** `Feature Engineering` **➔** `Model Training` **➔** `Model Evaluation` **➔** `Model Pusher & Registry`
