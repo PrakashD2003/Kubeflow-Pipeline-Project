@@ -1,0 +1,52 @@
+graph TD
+    %% Subgraph: Data and Feature Preparation
+    subgraph Data_and_Feature_Prep
+        A[Data Ingestion] --> B[Data Preprocessing]
+        B --> C[Feature Engineering TF-IDF]
+    end
+
+    %% Subgraph: ML Workflow Orchestration (Kubeflow)
+    subgraph ML_Workflow_Orchestration_Kubeflow
+        C --> D[Model Training RandomForest]
+        D --> E[Model Evaluation]
+        E --> F{Model Pusher & Registry}
+    end
+
+    %% Subgraph: Model Management (MLflow & DagsHub)
+    subgraph Model_Management
+        F -- Logs Model/Metrics --> G[MLflow Tracking Server]
+        F -- Manages Model Lifecycle --> H[MLflow Model Registry]
+        H -- Current Production Model --> F
+    end
+
+    %% Subgraph: Infrastructure
+    subgraph Kubernetes_Cluster
+        direction LR
+        I[Kubeflow Pipelines]
+        J[Docker Containers]
+        K[Kubernetes]
+        I --> J
+        J --> K
+    end
+
+    %% Subgraph: CI/CD
+    subgraph CI_CD
+        L[GitHub Actions] --> I
+    end
+
+    %% Deployment and Monitoring
+    F -->|Deploys if approved| Prod[Model Deployment e.g. FastAPI Service]
+    Prod --> M[Monitoring e.g. Prometheus/Grafana]
+
+    %% Styling
+    classDef component fill:#EAF2F8,stroke:#0E5484,stroke-width:2px;
+    class A,B,C,D,E,F component;
+
+    classDef platform fill:#D5F5E3,stroke:#0F4539,stroke-width:2px;
+    class G,H,I,K platform;
+
+    classDef cicd fill:#FCF3CF,stroke:#8B6914,stroke-width:2px;
+    class L cicd;
+
+    classDef deployment fill:#F8F9F9,stroke:#666666,stroke-width:2px;
+    class Prod,M deployment;
