@@ -4,4 +4,6 @@ nltk
 wordcloud
 scikit-learn
 pyyaml
-
+kfp
+mlflow<3
+dagshub

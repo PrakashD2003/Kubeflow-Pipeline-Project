@@ -9,7 +9,7 @@ def data_ingestion(
     test_data: Output[Dataset],
     )-> dsl.ContainerSpec:
     return dsl.ContainerSpec(
-        image='prakash3112/kubeflow-pipeline:ingestv3',
+        image='prakash3112/kubeflow-pipeline:ingestv1',
         command=['python', '/app/ingest.py'],
         args=[
             param_file_path,
@@ -29,7 +29,7 @@ def data_preprocessing(
     test_processed: Output[Dataset],
 )-> dsl.ContainerSpec:
     return dsl.ContainerSpec(
-        image='prakash3112/kubeflow-pipeline:preprocess-v10',
+        image='prakash3112/kubeflow-pipeline:preprocess-v1',
         command=['python', '/app/preprocess.py'],
         args=[
             train_data.path,
@@ -52,7 +52,7 @@ def feature_engineering(
     test_tfidf: Output[Dataset],
 )-> dsl.ContainerSpec:
     return dsl.ContainerSpec(
-        image='prakash3112/kubeflow-pipeline:feature_engineering-v6',
+        image='prakash3112/kubeflow-pipeline:feature_engineering-v1',
         command=['python', '/app/feature_engineering.py'],
         args=[
             param_file_path,
@@ -70,7 +70,7 @@ def train_model(
     model: Output[Model],
 )-> dsl.ContainerSpec:
     return dsl.ContainerSpec(
-        image='prakash3112/kubeflow-pipeline:train-v4',
+        image='prakash3112/kubeflow-pipeline:train-v1',
         command=['python', '/app/model_training.py'],
         args=[param_file_path, 
               train_tfidf.path, 
@@ -85,12 +85,40 @@ def evaluate_model(
     metrics: Output[Metrics],
 )-> dsl.ContainerSpec:
     return dsl.ContainerSpec(
-        image='prakash3112/kubeflow-pipeline:model_evaluation-v9',
+        image='prakash3112/kubeflow-pipeline:model_evaluation-v1',
         command=['python', '/app/model_evaluation.py'],
         args=[
             model.path,           # ✔ model_load_path
             test_tfidf.path,      # ✔ test_data_path
             metrics.path
+        ]
+    )
+
+@dsl.container_component
+def push_model(
+    model: Input[Model],
+    metrics: Input[Metrics],
+    repo_owner_name: str,
+    repo_name: str,
+    model_name: str,
+    stage: str,
+    param_path: str,
+    dagshub_username: str,
+    dagshub_token: str,
+) -> dsl.ContainerSpec:
+    return dsl.ContainerSpec(
+        image='prakash3112/kubeflow-pipeline:push_model-v2',
+        command=['python', '/app/model_pusher.py'],
+        args=[
+            repo_owner_name,
+            repo_name,
+            model_name,
+            stage,
+            param_path,
+            model.path,
+            metrics.path,
+            dagshub_username,
+            dagshub_token
         ]
     )
 
@@ -102,7 +130,13 @@ def spam_detection_pipeline(
     param_file_path: str = '/app/params.yaml',
     data_url: str = 'https://raw.githubusercontent.com/PrakashD2003/DATASETS/main/spam.csv',
     text_column: str = 'text',
-    target_column: str = 'target'
+    target_column: str = 'target',
+    repo_owner_name: str = 'your_dagshub_username',
+    repo_name: str = 'your_repo_name',
+    model_name: str = 'spam_detection_model',
+    stage: str = 'Production',
+    dagshub_username: str = 'your_dagshub_username',
+    dagshub_token: str = 'your_dagshub_token'
     ):
 
     ingest_op = data_ingestion(param_file_path=param_file_path,
@@ -126,11 +160,23 @@ def spam_detection_pipeline(
         train_tfidf=feature_op.outputs['train_tfidf']
     )
 
-    evaluate_model(
+    evaluate_op = evaluate_model(
         model=train_op.outputs['model'],
         test_tfidf=feature_op.outputs['test_tfidf']
     )
 
+    push_op = push_model(
+        model=train_op.outputs['model'],
+        metrics=evaluate_op.outputs['metrics'],
+        repo_owner_name=repo_owner_name,
+        repo_name=repo_name,
+        model_name=model_name,
+        stage=stage,
+        param_path=param_file_path,
+        dagshub_username=dagshub_username,
+        dagshub_token=dagshub_token
+    )
+    
 if __name__ == '__main__':
     compiler.Compiler().compile(
         pipeline_func=spam_detection_pipeline,

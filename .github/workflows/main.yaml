@@ -1,0 +1,70 @@
+name: Build and Deploy Pipeline
+on:
+  push:
+    branches:
+      - main
+
+
+jobs:
+  Compile-Pipeline:
+    runs-on: ubuntu-latest  # <-- You change this
+    # runs-on: self-hosted      # <-- to this! for local deployment or self-hosted runner.
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements-CI.txt
+
+      - name: Compile Kubeflow Pipeline
+        run: python pipeline.py
+      
+      - name: Save Pipeline Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-artifacts
+          path: spam_detection_pipeline.yaml
+
+  # Deploy-Pipeline:
+  #   needs: Compile-Pipeline  # <-- Ensures this job runs after Compile-Pipeline
+  #   runs-on: self-hosted   # <-- For local deployment
+  #   runs-on: ubuntu-latest # For cloud deployment
+  #   steps:
+  #      - name: Download pipeline artifact  # <-- Downloads the compiled YAML
+  #        uses: actions/download-artifact@v4
+  #        with:
+  #          name: pipeline-artifacts
+  #     - name: Check out code
+  #       uses: actions/checkout@v4
+        
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.10'
+
+  #     - name: Install dependencies
+  #       run: pip install kfp
+        
+  #     - name: Deploy Pipeline to Local Kubeflow
+  #       run: |
+  #         python << END
+  #         import kfp
+  #         client = kfp.Client(host='http://127.0.0.1:8080') # Example host
+  #         client.upload_pipeline('spam_detection_pipeline.yaml', pipeline_name='Spam Detection Pipeline v2')
+  #         END
+
+     

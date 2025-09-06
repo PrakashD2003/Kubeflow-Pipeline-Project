@@ -2,8 +2,14 @@
 # Name: spam-detection-pipeline
 # Description: Pipeline for spam detection using TF-IDF and RandomForest
 # Inputs:
+#    dagshub_token: str [Default: 'your_dagshub_token']
+#    dagshub_username: str [Default: 'your_dagshub_username']
 #    data_url: str [Default: 'https://raw.githubusercontent.com/PrakashD2003/DATASETS/main/spam.csv']
+#    model_name: str [Default: 'spam_detection_model']
 #    param_file_path: str [Default: '/app/params.yaml']
+#    repo_name: str [Default: 'your_repo_name']
+#    repo_owner_name: str [Default: 'your_dagshub_username']
+#    stage: str [Default: 'Production']
 #    target_column: str [Default: 'target']
 #    text_column: str [Default: 'text']
 components:
@@ -95,6 +101,33 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
+  comp-push-model:
+    executorLabel: exec-push-model
+    inputDefinitions:
+      artifacts:
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+      parameters:
+        dagshub_token:
+          parameterType: STRING
+        dagshub_username:
+          parameterType: STRING
+        model_name:
+          parameterType: STRING
+        param_path:
+          parameterType: STRING
+        repo_name:
+          parameterType: STRING
+        repo_owner_name:
+          parameterType: STRING
+        stage:
+          parameterType: STRING
   comp-train-model:
     executorLabel: exec-train-model
     inputDefinitions:
@@ -125,7 +158,7 @@ deploymentSpec:
         command:
         - python
         - /app/ingest.py
-        image: prakash3112/kubeflow-pipeline:ingestv3
+        image: prakash3112/kubeflow-pipeline:ingestv1
     exec-data-preprocessing:
       container:
         args:
@@ -138,7 +171,7 @@ deploymentSpec:
         command:
         - python
         - /app/preprocess.py
-        image: prakash3112/kubeflow-pipeline:preprocess-v10
+        image: prakash3112/kubeflow-pipeline:preprocess-v1
     exec-evaluate-model:
       container:
         args:
@@ -148,7 +181,7 @@ deploymentSpec:
         command:
         - python
         - /app/model_evaluation.py
-        image: prakash3112/kubeflow-pipeline:model_evaluation-v9
+        image: prakash3112/kubeflow-pipeline:model_evaluation-v1
     exec-feature-engineering:
       container:
         args:
@@ -160,7 +193,23 @@ deploymentSpec:
         command:
         - python
         - /app/feature_engineering.py
-        image: prakash3112/kubeflow-pipeline:feature_engineering-v6
+        image: prakash3112/kubeflow-pipeline:feature_engineering-v1
+    exec-push-model:
+      container:
+        args:
+        - '{{$.inputs.parameters[''repo_owner_name'']}}'
+        - '{{$.inputs.parameters[''repo_name'']}}'
+        - '{{$.inputs.parameters[''model_name'']}}'
+        - '{{$.inputs.parameters[''stage'']}}'
+        - '{{$.inputs.parameters[''param_path'']}}'
+        - '{{$.inputs.artifacts[''model''].path}}'
+        - '{{$.inputs.artifacts[''metrics''].path}}'
+        - '{{$.inputs.parameters[''dagshub_username'']}}'
+        - '{{$.inputs.parameters[''dagshub_token'']}}'
+        command:
+        - python
+        - /app/model_pusher.py
+        image: prakash3112/kubeflow-pipeline:push_model-v2
     exec-train-model:
       container:
         args:
@@ -170,7 +219,7 @@ deploymentSpec:
         command:
         - python
         - /app/model_training.py
-        image: prakash3112/kubeflow-pipeline:train-v4
+        image: prakash3112/kubeflow-pipeline:train-v1
 pipelineInfo:
   description: Pipeline for spam detection using TF-IDF and RandomForest
   name: spam-detection-pipeline
@@ -256,6 +305,41 @@ root:
               componentInputParameter: param_file_path
         taskInfo:
           name: feature-engineering
+      push-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-push-model
+        dependentTasks:
+        - evaluate-model
+        - train-model
+        inputs:
+          artifacts:
+            metrics:
+              taskOutputArtifact:
+                outputArtifactKey: metrics
+                producerTask: evaluate-model
+            model:
+              taskOutputArtifact:
+                outputArtifactKey: model
+                producerTask: train-model
+          parameters:
+            dagshub_token:
+              componentInputParameter: dagshub_token
+            dagshub_username:
+              componentInputParameter: dagshub_username
+            model_name:
+              componentInputParameter: model_name
+            param_path:
+              componentInputParameter: param_file_path
+            repo_name:
+              componentInputParameter: repo_name
+            repo_owner_name:
+              componentInputParameter: repo_owner_name
+            stage:
+              componentInputParameter: stage
+        taskInfo:
+          name: push-model
       train-model:
         cachingOptions:
           enableCache: true
@@ -276,12 +360,36 @@ root:
           name: train-model
   inputDefinitions:
     parameters:
+      dagshub_token:
+        defaultValue: your_dagshub_token
+        isOptional: true
+        parameterType: STRING
+      dagshub_username:
+        defaultValue: your_dagshub_username
+        isOptional: true
+        parameterType: STRING
       data_url:
         defaultValue: https://raw.githubusercontent.com/PrakashD2003/DATASETS/main/spam.csv
         isOptional: true
         parameterType: STRING
+      model_name:
+        defaultValue: spam_detection_model
+        isOptional: true
+        parameterType: STRING
       param_file_path:
         defaultValue: /app/params.yaml
+        isOptional: true
+        parameterType: STRING
+      repo_name:
+        defaultValue: your_repo_name
+        isOptional: true
+        parameterType: STRING
+      repo_owner_name:
+        defaultValue: your_dagshub_username
+        isOptional: true
+        parameterType: STRING
+      stage:
+        defaultValue: Production
         isOptional: true
         parameterType: STRING
       target_column:
@@ -293,4 +401,4 @@ root:
         isOptional: true
         parameterType: STRING
 schemaVersion: 2.1.0
-sdkVersion: kfp-2.13.0
+sdkVersion: kfp-2.14.3

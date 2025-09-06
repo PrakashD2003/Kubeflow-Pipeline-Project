@@ -8,3 +8,11 @@
   n_estimators: 40
   random_state: 2
 
+model_comparison:
+  improvement_threshold: 0.05  # 5% improvement required to promote to production
+  primary_metric: "accuracy"    # Primary metric to compare models
+  comparison_metrics:          # Additional metrics to log for comparison
+    - "precision"
+    - "recall"
+    - "f1_score"
+
